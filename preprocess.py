@@ -1,9 +1,13 @@
 import os
+import json
 import music21 as m21
 
-KERN_DATASET_PATH = "data/deutschl/test"
-SAVE_DIR = "data/preprocessed_dataset"
+KERN_DATASET_PATH = "data/deutsch/test"
+PREPROCESSED_DATASET_PATH = "data/preprocessed_dataset"
+SINGLE_FILE_DATASET_PATH = "data/preprocessed_dataset_single_file/dataset"
+MAPPING_PATH = "data/preprocessed_dataset_single_file/mapping.json"
 ACCEPTABLE_DURATIONS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4]
+SEQUENCE_LENGTH = 64
 
 us = m21.environment.UserSettings()
 us["musicxmlPath"] = "C:/Program Files/MuseScore 4/bin/MuseScore4.exe"
@@ -97,17 +101,98 @@ def preprocess(dataset_path):
         encoded_song = encode_song(song)
 
         # save songs to text files
-        save_path = os.path.join(SAVE_DIR, str(i))
+        save_path = os.path.join(PREPROCESSED_DATASET_PATH, str(i))
         with open(save_path, "w") as fp:
             fp.write(encoded_song)
+        fp.close()
+
+
+def load_preprocessed_song(song_path):
+    with open(song_path, "r") as fp:
+        song = fp.read()
+    fp.close()
+
+    return song
+
+
+def create_single_file_dataset(files_path, single_file_dataset_path, sequence_length):
+    new_song_delimiter = "/ " * sequence_length
+    single_file_songs = ""
+
+    # load encoded songs and add delimiters
+    for path, _, files in os.walk(files_path):
+        for file in files:
+            file_path = os.path.join(path, file)
+            song = load_preprocessed_song(file_path)
+            single_file_songs = single_file_songs + song + " " + new_song_delimiter
+
+    single_file_songs = single_file_songs[:-1]
+
+    # save intring that contains all the dataset
+    with open(single_file_dataset_path, "w") as fp:
+        fp.write(single_file_songs)
+    fp.close()
+
+    return single_file_songs
+
+
+def create_mapping(songs, mapping_path):
+    mappings = {}
+
+    # identify the vocabulary
+    songs = songs.split()
+    vocabulary = list(set(songs))
+
+    # create mappings
+    for i, symbol in enumerate(vocabulary):
+        mappings[symbol] = i
+
+    # save the vocabulary to a json file
+    with open(mapping_path, "w") as fp:
+        json.dump(mappings, fp, indent=4)
+    fp.close()
+
+
+def convert_songs_to_int(songs):
+    int_songs_list = []
+
+    # load mappings
+    with open(MAPPING_PATH, "r") as fp:
+        mapping = json.load(fp)
+
+    # cast songs string to a list
+    songs_list = songs.split()
+
+    # map songs to int
+    for symbol in songs_list:
+        int_songs_list.append(mapping[symbol])
+
+    return int_songs_list
+
+
+def generate_training_sequences(sequence_length):
+    inputs = []
+    targets = []
+
+    # load songs and map them to int
+    songs = load_preprocessed_song(SINGLE_FILE_DATASET_PATH)
+    int_songs = convert_songs_to_int(songs)
+
+    # generate the training sequences
+    num_sequences = len(int_songs) - sequence_length
+    for i in range(num_sequences):
+        inputs.append(int_songs[i:i+sequence_length])
+        targets.append(int_songs[i+sequence_length])
+
+    # one-hot encode the sequences
+    vocabulary_size = len(set(int_songs))
+
+
+def main():
+    preprocess(KERN_DATASET_PATH)
+    songs_single_file = create_single_file_dataset(PREPROCESSED_DATASET_PATH, SINGLE_FILE_DATASET_PATH, SEQUENCE_LENGTH)
+    create_mapping(songs_single_file, MAPPING_PATH)
 
 
 if __name__ == "__main__":
-    # songs_list = load_songs_in_kern(KERN_DATASET_PATH)
-    # print(f"Loaded {len(songs_list)} songs.")
-    # song_test = songs_list[0]
-
-    # transposed_song_test = transpose(song_test)
-    # transposed_song_test.show()
-
-    preprocess(KERN_DATASET_PATH)
+    main()
