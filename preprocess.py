@@ -1,8 +1,10 @@
 import os
 import json
 import music21 as m21
+import numpy as np
+import keras as keras
 
-KERN_DATASET_PATH = "data/deutsch/test"
+KERN_DATASET_PATH = "data/deutsch/erk"
 PREPROCESSED_DATASET_PATH = "data/preprocessed_dataset"
 SINGLE_FILE_DATASET_PATH = "data/preprocessed_dataset_single_file/dataset"
 MAPPING_PATH = "data/preprocessed_dataset_single_file/mapping.json"
@@ -128,7 +130,7 @@ def create_single_file_dataset(files_path, single_file_dataset_path, sequence_le
 
     single_file_songs = single_file_songs[:-1]
 
-    # save intring that contains all the dataset
+    # save string that contains all the dataset
     with open(single_file_dataset_path, "w") as fp:
         fp.write(single_file_songs)
     fp.close()
@@ -186,12 +188,17 @@ def generate_training_sequences(sequence_length):
 
     # one-hot encode the sequences
     vocabulary_size = len(set(int_songs))
+    inputs = keras.utils.to_categorical(inputs, num_classes=vocabulary_size)
+    targets = np.array(targets)
+
+    return inputs, targets
 
 
 def main():
     preprocess(KERN_DATASET_PATH)
     songs_single_file = create_single_file_dataset(PREPROCESSED_DATASET_PATH, SINGLE_FILE_DATASET_PATH, SEQUENCE_LENGTH)
     create_mapping(songs_single_file, MAPPING_PATH)
+    # inputs, targets = generate_training_sequences(SEQUENCE_LENGTH)
 
 
 if __name__ == "__main__":
